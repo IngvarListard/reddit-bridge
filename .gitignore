@@ -1,0 +1,14 @@
+__pycache__/
+.venv/
+state/
+history*.json
+*.sqlite
+*.db
+.env
+.env.*
+*.pem
+*.key
+*.tar.gz
+reddit-bridge
+.DS_Store
+deploy/awg-telegram/

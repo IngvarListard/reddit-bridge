@@ -1,0 +1,27 @@
+services:
+  reddit-bridge:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: reddit-bridge:local
+    container_name: reddit-bridge
+    restart: unless-stopped
+    command:
+      - -port
+      - "8788"
+      - -ttl
+      - "1800"
+      - -timeout
+      - "12"
+      - -history
+      - /data/history.json
+    volumes:
+      - ${BRIDGE_STATE:-./state}:/data
+    ports:
+      - "8788:8788"
+    environment:
+      TZ: UTC
+      FRONTEND_ALLOWLIST: ""
+    logging:
+      options:
+        max-size: 10m

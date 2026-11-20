@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>reddit-bridge</title>
+<style>
+  :root { color-scheme: dark; --bg:#0f1115; --card:#181b22; --line:#2a3040;
+          --fg:#e6e9ef; --muted:#8b93a7; --accent:#ff6a3d; --ok:#39c07a; --warn:#e8b339; }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif }
+  .wrap { max-width:1080px; margin:0 auto; padding:24px 18px 60px }
+  header { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:20px }
+  h1 { font-size:22px; margin:0 }
+  h1 span { color:var(--accent) }
+  .badge { padding:3px 10px; border-radius:999px; font-size:12px; font-weight:600;
+           border:1px solid var(--line); background:var(--card); color:var(--muted) }
+  .badge.ok { color:var(--ok); border-color:#1d5c3a }
+  .badge.warn { color:var(--warn); border-color:#6b531a }
+  .grid { display:grid; grid-template-columns:minmax(320px,1fr) minmax(320px,1fr); gap:18px }
+  @media (max-width:820px){ .grid { grid-template-columns:1fr } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px }
+  .card h2 { font-size:15px; margin:0 0 14px; color:var(--muted);
+             text-transform:uppercase; letter-spacing:.06em }
+  label { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px }
+  input,select { width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--line);
+                 background:#10131a; color:var(--fg); font:inherit }
+  input:focus,select:focus { outline:none; border-color:var(--accent) }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:10px }
+  .row3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px }
+  button { cursor:pointer; border:1px solid var(--line); background:#222735;
+           color:var(--fg); padding:9px 14px; border-radius:8px; font:inherit }
+  button:hover { border-color:var(--accent) }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#151515; font-weight:700 }
+  .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:16px }
+  .url { margin-top:14px; padding:10px 12px; background:#0c0e13; border:1px solid var(--line);
+         border-radius:8px; font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+         word-break:break-all; color:#a8e0b8 }
+  .hint { font-size:11px; color:var(--muted); margin-top:6px }
+  #preview { margin-top:12px; font-size:13px }
+  #preview div { padding:6px 0; border-bottom:1px solid var(--line) }
+  #preview div:last-child { border:0 }
+  .kv { display:grid; grid-template-columns:1fr auto; gap:4px 10px; font-size:12px }
+  .kv dt { color:var(--muted) } .kv dd { margin:0; font-family:ui-monospace,monospace }
+  .feeds { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px }
+  .feeds a { color:var(--fg); text-decoration:none; border:1px solid var(--line);
+             padding:5px 10px; border-radius:999px; font-size:12px }
+  .feeds a:hover { border-color:var(--accent) }
+  a.ext { color:var(--accent) }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>reddit<span>-bridge</span></h1>
+    <span id="status" class="badge">проверяю…</span>
+    <a class="ext" href="/healthz" target="_blank">/healthz</a>
+    <a class="ext" href="/metrics" target="_blank">/metrics</a>
+  </header>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Конструктор фида</h2>
+
+      <label>Вставить ссылку на Reddit (автодетект)</label>
+      <div class="row">
+        <input id="detect" placeholder="https://www.reddit.com/r/selfhosted/">
+        <button id="detectBtn">Определить</button>
+      </div>
+      <div class="hint" id="detectHint">Распознаёт /r/&lt;sub&gt; и /user/&lt;name&gt; — как detectParameters() в RSS-Bridge.</div>
+
+      <div class="row">
+        <div>
+          <label>Контекст</label>
+          <select id="ctx">
+            <option value="single">single — один сабреддит</option>
+            <option value="multi">multi — несколько</option>
+            <option value="user">user — автор (экспериментально)</option>
+          </select>
+        </div>
+        <div>
+          <label>Сабреддит(ы), через запятую</label>
+          <input id="r" value="selfhosted">
+        </div>
+      </div>
+
+      <label>Пользователь (для контекста user)</label>
+      <input id="u" placeholder="имя без u/">
+
+      <div class="row3">
+        <div><label>Сортировка d</label>
+          <select id="d"><option value="">смешанный (по умолчанию)</option>
+            <option value="new">new</option><option value="hot">hot</option>
+            <option value="top">top</option><option value="relevance">relevance</option>
+            <option value="comments">comments</option></select></div>
+        <div><label>Окно t</label>
+          <select id="t"><option>week</option><option>hour</option><option>day</option>
+            <option>month</option><option>year</option><option>all</option></select></div>
+        <div><label>Формат</label>
+          <select id="format"><option value="atom">Atom</option><option value="rss">RSS 2.0</option></select></div>
+      </div>
+
+      <div class="row3">
+        <div><label>Мин. score (-1 = выкл)</label><input id="score" type="number" value="-1"></div>
+        <div><label>Мин. комментариев</label><input id="min_comments" type="number" value="-1"></div>
+        <div><label>Лимит</label><input id="limit" type="number" value="25"></div>
+      </div>
+
+      <div class="row">
+        <div><label>Поиск q</label><input id="q" placeholder="ключевые слова"></div>
+        <div><label>Flair f</label><input id="f" placeholder="Release"></div>
+      </div>
+
+      <div class="row">
+        <div><label>Frontend (хост ссылок)</label>
+          <input id="frontend" placeholder="https://old.reddit.com">
+          <div class="hint">Только www/old/reddit.com или хост из FRONTEND_ALLOWLIST окружения контейнера.</div>
+        </div>
+        <div><label>Имя фида</label><input id="feedName" placeholder="Reddit r/selfhosted">
+          <div class="hint">include=comments — фаза 2, пока отдаём только посты.</div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="primary" id="buildBtn">Собрать URL</button>
+        <button id="copyBtn">Скопировать</button>
+        <button id="openBtn">Открыть</button>
+        <button id="previewBtn">Предпросмотр</button>
+        <button id="saveBtn">Запомнить</button>
+      </div>
+      <div class="url" id="url">/feed?r=selfhosted</div>
+      <div class="hint">Готовую ссылку можно добавить в ридер.</div>
+      <div id="preview"></div>
+    </section>
+
+    <section class="card">
+      <h2>Состояние</h2>
+      <dl class="kv" id="health">загрузка…</dl>
+      <div class="hint" id="warn" style="display:none;color:var(--warn)"></div>
+
+      <h2 style="margin-top:24px">Мои фиды</h2>
+      <div class="feeds" id="feeds"></div>
+      <div class="hint">Список хранится в localStorage этого браузера.</div>
+
+      <h2 style="margin-top:24px">Что умеет источник</h2>
+      <div class="hint">
+        Рабочий путь: JS-челлендж → HTML <code>&lt;shreddit-post&gt;</code> → Atom/RSS.
+        Запрос <code>.json</code> с этого IP даёт 403, <code>.rss</code> мёртв.
+        Кэш с <code>ETag/304</code> и <code>stale-while-error</code>: при поломке
+        Лента остаётся валидной, 429 в ридер не попадает.
+      </div>
+      <div class="hint" style="margin-top:10px">
+        Окна <code>t</code> и <code>frontend</code> работают;
+        <code>score</code>, <code>min_comments</code>, <code>q</code>,
+        <code>f</code>, <code>relevance</code>, <code>comments</code> —
+        локальные фильтры (Reddit-поиск серверно постов не отдаёт).
+        Режим <code>u=</code> пока только посты; топ комментариев — фаза 2.
+        
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const val = id => $(id).value.trim();
+
+function buildURL() {
+  const p = new URLSearchParams();
+  p.set('r', val('r') || 'selfhosted');
+  const d = val('d'), t = val('t'), fmt = val('format');
+  if (d) p.set('sort', d);
+  if (t && t !== 'week') p.set('t', t);
+  if (fmt && fmt !== 'atom') p.set('format', fmt);
+  const score = parseInt(val('score'), 10);
+  const mc = parseInt(val('min_comments'), 10);
+  if (!isNaN(score) && score >= 0) p.set('score', score);
+  if (!isNaN(mc) && mc >= 0) p.set('min_comments', mc);
+  const lim = parseInt(val('limit'), 10);
+  if (!isNaN(lim) && lim !== 25) p.set('limit', lim);
+  if (val('q')) p.set('q', val('q'));
+  if (val('f')) p.set('f', val('f'));
+  if (val('u')) p.set('u', val('u'));
+  if (val('frontend')) p.set('frontend', val('frontend'));
+  return '/feed?' + p.toString();
+}
+
+function refreshURL() { $('url').textContent = buildURL(); }
+
+async function loadHealth() {
+  try {
+    const h = await (await fetch('/healthz')).json();
+    const c = h.cache || {}, s = h.source || {};
+    const age = c.last_success_age_s;
+    const stale = c.stale || (age !== null && age !== undefined && age > 3600);
+    const badge = $('status');
+    badge.textContent = stale ? '⚠ деградация (stale)' : '● работает';
+    badge.className = 'badge ' + (stale ? 'warn' : 'ok');
+    const rows = [
+      ['uptime', (c.uptime_s || 0) + ' c'],
+      ['записей в кэше', c.entries ?? '—'],
+      ['фетчей / ошибок', (c.fetch_total ?? 0) + ' / ' + (c.error_total ?? 0)],
+      ['последний успех', age == null ? '—' : age + ' с назад'],
+      ['stale', String(!!c.stale)],
+      ['источник', s.type || 'fixture'],
+      ['постов в истории', s.history_posts ?? '—'],
+      ['решено челленджей', s.challenge_solves ?? '—'],
+      [' variant', s.challenge_variant || '—'],
+      ['ошибок челленджа', s.challenge_failures ?? '—'],
+      ['последняя ошибка', c.last_error || s.last_error || '—'],
+    ];
+    $('health').innerHTML = rows.map(([k,v]) =>
+      '<dt>'+k+'</dt><dd>'+String(v).replace(/</g,'&lt;')+'</dd>').join('');
+    const w = $('warn');
+    if (stale) { w.style.display='block';
+      w.textContent='Внимание: свежих данных нет — отдаётся последняя сохранённая лента. Проверь /metrics и логи контейнера.'; }
+    else w.style.display='none';
+  } catch (e) {
+    $('status').textContent = '✗ недоступен'; $('status').className='badge warn';
+    $('health').textContent = String(e);
+  }
+}
+
+async function preview() {
+  const box = $('preview'); box.innerHTML = 'загрузка…';
+  try {
+    const txt = await (await fetch(buildURL())).text();
+    const doc = new DOMParser().parseFromString(txt, 'application/xml');
+    const items = [...doc.querySelectorAll('entry, item')].slice(0, 6);
+    if (!items.length) { box.innerHTML = '<div>записей нет</div>'; return; }
+    box.innerHTML = items.map(i => {
+      const t = i.querySelector('title')?.textContent || '(без заголовка)';
+      return '<div>' + t.replace(/</g,'&lt;') + '</div>';
+    }).join('');
+  } catch (e) { box.innerHTML = '<div>ошибка: ' + String(e) + '</div>'; }
+}
+
+async function detect() {
+  const u = val('detect'); if (!u) return;
+  const r = await (await fetch('/api/detect?url=' + encodeURIComponent(u))).json();
+  if (!r.ok) { $('detectHint').textContent = 'Не распознано: ' + r.error; return; }
+  if (r.params.r) { $('r').value = r.params.r; $('ctx').value='single'; }
+  if (r.params.u) { $('u').value = r.params.u; $('ctx').value='user'; }
+  $('detectHint').textContent = 'Определено: ' + JSON.stringify(r.params);
+  if (!$('feedName').value) $('feedName').value = 'Reddit ' + (r.params.r ? 'r/'+r.params.r : 'u/'+r.params.u);
+  refreshURL();
+}
+
+const KEY = 'reddit-bridge-feeds';
+function saved() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch(e){ return []; } }
+function renderFeeds() {
+  $('feeds').innerHTML = saved().map(f =>
+    '<a href="'+f.url.replace(/"/g,'&quot;')+'" target="_blank">'+f.name.replace(/</g,'&lt;')+'</a>').join('')
+    || '<span class="hint">пока пусто</span>';
+}
+
+['r','u','d','t','format','score','min_comments','limit','q','f','frontend','ctx']
+  .forEach(id => $(id).addEventListener('input', refreshURL));
+$('buildBtn').onclick = refreshURL;
+$('previewBtn').onclick = preview;
+$('detectBtn').onclick = detect;
+$('openBtn').onclick = () => window.open(buildURL(), '_blank');
+$('copyBtn').onclick = async () => {
+  const u = new URL(buildURL(), location.href).href;
+  try { await navigator.clipboard.writeText(u); $('copyBtn').textContent='Скопировано!'; }
+  catch(e) { $('url').textContent = u; }
+  setTimeout(()=>$('copyBtn').textContent='Скопировать', 1500);
+};
+$('saveBtn').onclick = () => {
+  const list = saved();
+  const name = val('feedName') || 'Reddit ' + val('r');
+  const url = buildURL();
+  if (!list.some(f => f.url === url)) list.push({name, url});
+  localStorage.setItem(KEY, JSON.stringify(list)); renderFeeds();
+};
+
+refreshURL(); renderFeeds(); loadHealth(); setInterval(loadHealth, 30000);
+</script>
+</body>
+</html>
